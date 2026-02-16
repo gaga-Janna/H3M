@@ -1,0 +1,10 @@
+# datasets / artifacts
+base_datasets/
+result/
+*.npz
+*.pkl
+*.p
+visualizations_football/
+visualizations_noGRU/
+visualizations_football_old/
+grid_search_logs/
