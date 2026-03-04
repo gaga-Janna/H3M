@@ -1,4 +1,0 @@
-Grid Search Results
-===================
-lr0.0001_gamma0.5_bs16_step30 | Final ADE: 0.6990
-lr0.0001_gamma0.5_bs32_step30 | Final ADE: 0.7240
