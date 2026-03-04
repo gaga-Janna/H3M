@@ -2,7 +2,7 @@ import torch
 import numpy as np
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from model import UniTrajPredictor, UniTrajLoss
+from model import H3M, H3MLoss
 from prediction_dataset import FootballPredictionDataset
 import argparse
 from tqdm import tqdm
@@ -31,13 +31,10 @@ def train_epoch(model, dataloader, optimizer, criterion, device):
         
         optimizer.zero_grad()
         
-        # 前向传播（训练模式会返回KL损失）
         pred, kl_loss = model(obs, fut)
         
-        # 计算损失
         loss, pred_loss, kl_loss = criterion(pred, fut, kl_loss)
         
-        # 反向传播
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
@@ -64,7 +61,7 @@ def eval_epoch(model, dataloader, device, dataset):
             
             pred = model(obs)
             
-            # 计算ADE/FDE
+
             pred_denorm = dataset.denormalize(pred.cpu().numpy())
             fut_denorm = dataset.denormalize(fut.cpu().numpy())
             
@@ -94,7 +91,7 @@ def main(args):
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True, num_workers=4)
     test_loader = DataLoader(test_dataset, args.batch_size, shuffle=False, num_workers=4)
 
-    model = UniTrajPredictor(
+    model = H3M(
         obs_len=args.obs_len,
         pred_len=args.pred_len,
         num_agents=args.num_agents
@@ -111,7 +108,7 @@ def main(args):
         gamma=args.decay_gamma
     )
 
-    criterion = UniTrajLoss(lambda_kl=0.1)
+    criterion = H3MLoss(lambda_kl=0.1)
     
 
     best_ade = float('inf')

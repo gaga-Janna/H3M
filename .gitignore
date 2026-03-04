@@ -8,3 +8,6 @@ visualizations_football/
 visualizations_noGRU/
 visualizations_football_old/
 grid_search_logs/
+vis_football.py
+grid_search.py
+grid_search_results.txt
