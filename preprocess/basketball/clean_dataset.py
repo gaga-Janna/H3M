@@ -3,7 +3,7 @@ import numpy as np
 import os
 import pickle
 
-DATAPATH = '/home/jiajia/code/football/new2_football/base_datasets/basketball'
+DATAPATH = './H3M/base_datasets/basketball'
 # Feet
 LENGTH = 94
 WIDTH = 50

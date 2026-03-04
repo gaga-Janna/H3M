@@ -11,7 +11,7 @@ import glob
 import os
 from tqdm import tqdm
 
-csv_path = '/home/jiajia/code/football/new2_football/base_datasets/football'
+csv_path = './H3M/base_datasets/football'
 print(csv_path)
 seq_len = 24 # To be same as basketball dataseet
 only_middle = False

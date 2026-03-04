@@ -8,7 +8,7 @@ import numpy as np
 import os
 import pickle
 
-DATAPATH = '/home/jiajia/code/football/new2_football/base_datasets/football'
+DATAPATH = './H3M/base_datasets/football'
 # Yard
 LENGTH = 120 # X
 WIDTH = 53.5 # Y
