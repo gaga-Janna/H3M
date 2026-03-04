@@ -1,9 +1,3 @@
-'''
-Author: Yi Xu
-Preprocess dataset
-remove sequence out of the football pitch
-'''
-
 import numpy as np
 import os
 import pickle

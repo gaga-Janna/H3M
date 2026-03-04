@@ -1,9 +1,3 @@
-'''
-Author: Yi Xu
-Preprocess dataset
-Transfer football (91) csv files to npz
-'''
-
 import pandas as pd
 import numpy as np
 import pickle
