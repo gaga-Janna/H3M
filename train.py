@@ -145,11 +145,11 @@ if __name__ == '__main__':
     parser.add_argument('--obs_len', type=int, default=8)
     parser.add_argument('--pred_len', type=int, default=16)
     parser.add_argument('--num_agents', type=int, default=23)
-    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--num_epochs', type=int, default=150)
-    parser.add_argument('--lr', type=float, default=0.0005)
+    parser.add_argument('--lr', type=float, default=0.0001)
 
-    parser.add_argument('--decay_step', type=int, default=20,
+    parser.add_argument('--decay_step', type=int, default=30,
                         help='Step size for learning rate decay')
     parser.add_argument('--decay_gamma', type=float, default=0.5,
                         help='Gamma (multiplicative factor) for learning rate decay')

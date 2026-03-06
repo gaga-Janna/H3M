@@ -308,46 +308,158 @@ class IndividualDynamicsEncoder(nn.Module):
 # Level-3: Group-level decoder 
 # ============================================================
 
-class GroupCoordinationDecoder(nn.Module):
+# class GroupCoordinationDecoder(nn.Module):
+#     """
+#     (Method-level) Group Relational Decoder in your paper.
+#     IMPORTANT:
+#       - To NOT change runtime logic, we keep your existing GRU rollout decoder exactly.
+#     """
+#     def __init__(self, model_dim: int, z_dim: int, hidden_dim: int = 128, dropout: float = 0.1):
+#         super().__init__()
+#         self.hidden_dim = hidden_dim
+
+#         self.input_proj = nn.Linear(model_dim + z_dim + 2, hidden_dim)
+#         self.gru_cell = nn.GRUCell(hidden_dim, hidden_dim)
+
+#         self.dropout = nn.Dropout(dropout)
+#         self.out_proj = nn.Linear(hidden_dim, 2)
+
+#     def forward(self, h_obs: torch.Tensor, z: torch.Tensor, pred_len: int, start_pos: torch.Tensor) -> torch.Tensor:
+#         """
+#         h_obs:     [B, N, D]
+#         z:         [B, N, z_dim]
+#         start_pos: [B, N, 2]
+#         return:    [B, pred_len, N, 2]
+#         """
+#         B, N, _ = h_obs.shape
+
+#         current_pos = start_pos
+#         state = torch.zeros(B * N, self.hidden_dim, device=h_obs.device)
+
+#         preds = []
+#         for _ in range(pred_len):
+#             step_input = torch.cat([h_obs, z, current_pos], dim=-1)  # [B, N, D+z+2]
+#             step_input = self.input_proj(step_input).view(B * N, -1)
+
+#             state = self.gru_cell(step_input, state)
+#             state = self.dropout(state)
+
+#             delta = self.out_proj(state).view(B, N, 2)
+#             next_pos = current_pos + delta
+
+#             preds.append(next_pos)
+#             current_pos = next_pos
+
+#         return torch.stack(preds, dim=1)
+
+
+
+class TGRUCell(nn.Module):
     """
-    (Method-level) Group Relational Decoder in your paper.
-    IMPORTANT:
-      - To NOT change runtime logic, we keep your existing GRU rollout decoder exactly.
+    Trajectory-GRU Cell
     """
-    def __init__(self, model_dim: int, z_dim: int, hidden_dim: int = 128, dropout: float = 0.1):
+    def __init__(self, input_dim, hidden_dim, num_agents):
         super().__init__()
         self.hidden_dim = hidden_dim
+        self.num_agents = num_agents
+
+        # Relative Motion Encoder
+        self.rel_mlp = nn.Sequential(
+            nn.Linear(2, hidden_dim // 2),
+            nn.ReLU(),
+            nn.Linear(hidden_dim // 2, hidden_dim)
+        )
+
+        # GRU weights
+        self.x2h = nn.Linear(input_dim + hidden_dim, hidden_dim * 3)
+        self.h2h = nn.Linear(hidden_dim, hidden_dim * 3)
+
+        # Spatial gating
+        self.spatial_attn = nn.Linear(hidden_dim, 1)
+
+    def forward(self, x_t, h_prev, pos_t):
+        """
+        x_t:   [B, N, D]
+        h_prev:[B, N, H]
+        pos_t: [B, N, 2]
+        """
+        B, N, _ = x_t.shape
+
+        # Relative motion
+        pos_i = pos_t.unsqueeze(2)
+        pos_j = pos_t.unsqueeze(1)
+        rel_diff = pos_j - pos_i
+
+        rel_feat = self.rel_mlp(rel_diff)
+        rel_feat = rel_feat.mean(dim=2)
+
+        x_aug = torch.cat([x_t, rel_feat], dim=-1)
+
+        gates = self.x2h(x_aug) + self.h2h(h_prev)
+        r, z, n = torch.chunk(gates, 3, dim=-1)
+
+        r = torch.sigmoid(r)
+        z = torch.sigmoid(z)
+        n = torch.tanh(n * r)
+
+        attn_score = self.spatial_attn(h_prev)
+        attn_weight = torch.sigmoid(attn_score)
+
+        z = z * attn_weight
+
+        h_new = (1 - z) * h_prev + z * n
+        return h_new
+
+
+class GroupCoordinationDecoder(nn.Module):
+    """
+    Group Relational Decoder
+    """
+    def __init__(self, model_dim, z_dim, hidden_dim=128, num_agents=23, dropout=0.1):
+        super().__init__()
+
+        self.hidden_dim = hidden_dim
+        self.num_agents = num_agents
 
         self.input_proj = nn.Linear(model_dim + z_dim + 2, hidden_dim)
-        self.gru_cell = nn.GRUCell(hidden_dim, hidden_dim)
+
+        self.tgru_cell = TGRUCell(hidden_dim, hidden_dim, num_agents)
 
         self.dropout = nn.Dropout(dropout)
+
         self.out_proj = nn.Linear(hidden_dim, 2)
 
-    def forward(self, h_obs: torch.Tensor, z: torch.Tensor, pred_len: int, start_pos: torch.Tensor) -> torch.Tensor:
+    def forward(self, h_obs, z, pred_len, start_pos):
         """
-        h_obs:     [B, N, D]
-        z:         [B, N, z_dim]
+        h_obs: [B, N, D]
+        z: [B, N, z_dim]
         start_pos: [B, N, 2]
-        return:    [B, pred_len, N, 2]
         """
+
         B, N, _ = h_obs.shape
 
+        state = torch.zeros(B, N, self.hidden_dim, device=h_obs.device)
+
         current_pos = start_pos
-        state = torch.zeros(B * N, self.hidden_dim, device=h_obs.device)
 
         preds = []
-        for _ in range(pred_len):
-            step_input = torch.cat([h_obs, z, current_pos], dim=-1)  # [B, N, D+z+2]
-            step_input = self.input_proj(step_input).view(B * N, -1)
 
-            state = self.gru_cell(step_input, state)
+        for _ in range(pred_len):
+
+            step_input = torch.cat([h_obs, z, current_pos], dim=-1)
+
+            step_input = self.input_proj(step_input)
+
+            state = self.tgru_cell(step_input, state, current_pos)
+
             state = self.dropout(state)
 
-            delta = self.out_proj(state).view(B, N, 2)
+            delta = self.out_proj(state)
+
             next_pos = current_pos + delta
 
             preds.append(next_pos)
+
             current_pos = next_pos
 
         return torch.stack(preds, dim=1)
